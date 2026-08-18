@@ -176,6 +176,16 @@ button,[role=button]{font-family:inherit}
 #bookFx .tpg .ts{margin-top:8px;font-size:clamp(12px,1.2vw,15px);color:#4a7a66;font-weight:600}
 #bookFx .tpg .trule{margin-top:16px;width:60px;height:4px;border-radius:3px;background:linear-gradient(90deg,#1ec37a,#0f6a44)}
 #bookFx .tpg .tnote{margin-top:16px;font-size:clamp(10px,1vw,13px);color:#9fb4ab;font-weight:600}
+#bookFx .hbstatus{display:inline-flex;align-items:center;justify-content:center;margin-left:10px;padding:4px 9px;border-radius:999px;font-size:clamp(8px,.72vw,10px);font-weight:800;letter-spacing:.2px;vertical-align:2px}
+#bookFx .hbstatus.done{color:#087443;background:rgba(30,195,122,.13);border:1px solid rgba(30,195,122,.28)}
+#bookFx .hbstatus.progress{color:#8b6411;background:rgba(222,176,73,.14);border:1px solid rgba(222,176,73,.3)}
+#bookFx .fxactions{position:absolute;right:clamp(16px,2.4vw,36px);bottom:clamp(16px,2.5vh,30px);z-index:20;display:flex;gap:10px;opacity:0;transform:translateY(10px);transition:opacity .34s .35s ease,transform .42s .35s cubic-bezier(.22,.72,.2,1)}
+#bookFx.spread .fxactions{opacity:1;transform:none}
+#bookFx .fxbtn{min-height:44px;padding:0 17px;border-radius:14px;border:1px solid rgba(255,255,255,.28);font:800 13px/1 var(--font);color:#fff;cursor:pointer;background:rgba(13,31,46,.66);box-shadow:0 12px 28px rgba(2,10,20,.22),inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(18px) saturate(135%);-webkit-backdrop-filter:blur(18px) saturate(135%);transition:transform .2s ease,background .2s ease,border-color .2s ease}
+#bookFx .fxbtn:hover{transform:translateY(-2px);background:rgba(20,48,67,.82);border-color:rgba(255,255,255,.44)}
+#bookFx .fxbtn:focus-visible{outline:3px solid rgba(86,159,255,.9);outline-offset:3px}
+#bookFx .fxnext{color:#08281d;background:linear-gradient(135deg,rgba(133,235,190,.96),rgba(55,199,136,.94));border-color:rgba(210,255,235,.72)}
+#bookFx .fxnext:hover{background:linear-gradient(135deg,#a0f3cd,#44d893)}
 /* —— 封面（闭合态）：绕左脊掀开，露出完整对开双页 —— */
 #bookFx .fxcover{position:absolute;inset:0;z-index:6;transform-origin:left center;backface-visibility:hidden;overflow:hidden;will-change:transform;
   border-radius:8px;transform:rotateY(0deg);
@@ -479,7 +489,7 @@ body.result-mode .left{max-width:1680px;width:100%;margin-inline:auto}
   </div>
 </div>
 
-<div id="bookFx"><div class="fxbook"><div class="fxspread"><div class="fxpg fxpgL"><div class="pgc" id="fxPageL"></div></div><div class="fxpg fxpgR"><div class="pgc" id="fxPageR"></div></div></div><div class="fxcover"><span class="fxspine"></span></div><div class="fxlabel"><span class="ci"></span><span class="cn"></span></div></div></div>
+<div id="bookFx" role="dialog" aria-modal="true" aria-label="Handbook preview"><div class="fxbook"><div class="fxspread"><div class="fxpg fxpgL"><div class="pgc" id="fxPageL"></div></div><div class="fxpg fxpgR"><div class="pgc" id="fxPageR"></div></div></div><div class="fxcover"><span class="fxspine"></span></div><div class="fxlabel"><span class="ci"></span><span class="cn"></span></div></div><div class="fxactions"><button class="fxbtn fxback" id="fxBackBtn" type="button">← 返回书架</button><button class="fxbtn fxnext" id="fxNextBtn" type="button">继续下一步 →</button></div></div>
 <div class="modal-mask" id="bgModal"><div class="modal">
   <h3 data-t="bgTitle">🎨 Custom background</h3><p data-t="bgDesc">Upload an image or video (local only).</p>
   <label data-t="bgImgL">Background image</label><input type="file" id="bgImgFile" accept="image/*">
@@ -947,7 +957,7 @@ function buildSpread(tp){
   if(isFloor){
     let rows=HB_TOC.map(function(r){return '<div class="tocrow'+(r[2]?' h':'')+'"><span class="tt">'+esc(r[0])+'</span><span class="dl"></span><span class="pg">'+r[1]+'</span></div>';}).join('');
     R.innerHTML='<div class="pghead"><span>novonesis</span><span class="pg">Page 1/29</span></div>'+
-      '<div class="toctitle">Contents 目录</div>'+
+      '<div class="toctitle">Contents 目录 <span class="hbstatus done">✓ '+(lang==='zh'?'已完成':'Completed')+'</span></div>'+
       '<div class="toclist">'+rows+'</div>';
   }else{
     R.innerHTML='<div class="pghead"><span>novonesis</span><span class="pg">'+(meta?('Part '+meta[0]):'')+'</span></div>'+
@@ -955,22 +965,42 @@ function buildSpread(tp){
       '<div class="tn">'+P(tp.n)+'</div>'+
       '<div class="ts">'+P(tp.t||['',''])+'</div>'+
       '<div class="trule"></div>'+
-      '<div class="tnote">'+(lang==='zh'?'本章节编制中':'Chapter in progress')+'</div></div>';
+      '<div class="tnote"><span class="hbstatus progress">'+(lang==='zh'?'该章节在编制中':'Chapter in progress')+'</span></div></div>';
   }
 }
+var activeBookFx=null;
+var activeBookTopic=null;
+function closeBookFx(goNext){
+  const fx=document.getElementById('bookFx');
+  if(!fx||!fx.classList.contains('show')){if(goNext)transitionTo(1);return;}
+  const fb=fx.querySelector('.fxbook');
+  fx.classList.add('closing');
+  const done=function(){
+    fx.classList.remove('show','spread','closing');
+    fb.style.transition='none';fb.style.transform='translate3d(-50%,-50%,0)';
+    if(activeBookFx)activeBookFx.classList.remove('picked','open');
+    activeBookFx=null;activeBookTopic=null;
+    if(goNext)transitionTo(1);
+  };
+  setTimeout(done,REDUCE?20:330);
+}
 function openBookFx(bookEl,i,tp){
-  if(REDUCE){transitionTo(1);return;}
   try{
     const fx=document.getElementById('bookFx');
     const fb=fx.querySelector('.fxbook');
+    activeBookFx=bookEl;activeBookTopic=tp;
     fb.style.setProperty('--bt',BT[i]);
     fx.querySelector('.fxlabel .ci').innerHTML=ICON[tp.id]||'';
     fx.querySelector('.fxlabel .cn').textContent=P(tp.n);
+    document.getElementById('fxBackBtn').textContent=lang==='zh'?'← 返回书架':'← Back to shelf';
+    document.getElementById('fxNextBtn').textContent=lang==='zh'?'继续下一步 →':'Continue →';
+    fx.setAttribute('aria-label',(lang==='zh'?'手册预览：':'Handbook preview: ')+P(tp.n));
     buildSpread(tp);
     fx.classList.remove('spread','closing');
     fb.style.transition='none';fb.style.transform='translate3d(-50%,-50%,0)';
     fx.classList.add('show');
     bookEl.classList.add('picked');
+    if(REDUCE){fx.classList.add('spread');document.getElementById('fxNextBtn').focus();return;}
     /* 原地接管：仅用 transform 覆盖被点小书（GPU，不重排） */
     const tb=fb.getBoundingClientRect();
     const r=bookEl.getBoundingClientRect();
@@ -983,13 +1013,14 @@ function openBookFx(bookEl,i,tp){
     requestAnimationFrame(function(){requestAnimationFrame(function(){
       fb.style.transform='translate3d(-50%,-50%,0) rotateX(0deg) scale3d(1,1,1)';
     });});
-    /* 拿起与掀开微重叠，丝滑无顿挫；展开后停留供阅读 */
+    /* 拿起与掀开微重叠，展开后停留供阅读，由用户决定继续或返回 */
     setTimeout(function(){fx.classList.add('spread');},360);
-    setTimeout(function(){fx.classList.add('closing');},1650);
-    setTimeout(function(){transitionTo(1);},1720);
-    setTimeout(function(){fx.classList.remove('show','spread','closing');fb.style.transition='none';fb.style.transform='translate3d(-50%,-50%,0)';},2050);
   }catch(e){transitionTo(1);}
 }
+document.getElementById('fxBackBtn').onclick=function(e){e.stopPropagation();closeBookFx(false);};
+document.getElementById('fxNextBtn').onclick=function(e){e.stopPropagation();closeBookFx(true);};
+document.getElementById('bookFx').onclick=function(e){if(e.target===this)closeBookFx(false);};
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('bookFx').classList.contains('show'))closeBookFx(false);});
 function renderStep(){
   const c=document.getElementById('steps');c.innerHTML='';const s=stepList()[stepIndex];const sec=document.createElement('div');sec.className='step fx-enter';
   if(s==='topic'){
@@ -998,7 +1029,7 @@ function renderStep(){
       b.style.setProperty('--tilt',TILT[i]+'deg');b.style.setProperty('--bt',BT[i]);b.style.animationDelay=(i*0.05)+'s';
       b.innerHTML='<div class="pages"></div><div class="inside"><div class="il"></div><div class="il"></div><div class="il"></div></div>'+
         '<div class="cover"><span class="spine"></span><span class="sheen"></span><span class="idx">'+(i+1)+'</span><span class="ci">'+(ICON[tp.id]||'')+'</span><span class="cn">'+P(tp.n)+'</span><span class="ct">'+P(tp.t)+'</span></div>';
-      const act=()=>{state.topic=tp.id;state.role='';state.workshop='';state.details={};state.fills={};state.zone='';state.zoneLabel='';state.gmp=null;shelf.querySelectorAll('.book.open').forEach(x=>{if(x!==b)x.classList.remove('open');});b.classList.add('open');transitionTo(1);};
+      const act=()=>{state.topic=tp.id;state.role='';state.workshop='';state.details={};state.fills={};state.zone='';state.zoneLabel='';state.gmp=null;shelf.querySelectorAll('.book.open').forEach(x=>{if(x!==b)x.classList.remove('open');});b.classList.add('open');openBookFx(b,i,tp);};
       b.onclick=act;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}};slot.appendChild(b);shelf.appendChild(slot);});
     sec.appendChild(shelf);
   }else if(s==='role'){
