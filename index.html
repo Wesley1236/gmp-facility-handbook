@@ -970,7 +970,9 @@ function buildSpread(tp){
 }
 var activeBookFx=null;
 var activeBookTopic=null;
+var bookFxAutoTimer=null;
 function closeBookFx(goNext){
+  if(bookFxAutoTimer){clearTimeout(bookFxAutoTimer);bookFxAutoTimer=null;}
   const fx=document.getElementById('bookFx');
   if(!fx||!fx.classList.contains('show')){if(goNext)transitionTo(1);return;}
   const fb=fx.querySelector('.fxbook');
@@ -1000,7 +1002,11 @@ function openBookFx(bookEl,i,tp){
     fb.style.transition='none';fb.style.transform='translate3d(-50%,-50%,0)';
     fx.classList.add('show');
     bookEl.classList.add('picked');
-    if(REDUCE){fx.classList.add('spread');document.getElementById('fxNextBtn').focus();return;}
+    if(REDUCE){
+      fx.classList.add('spread');document.getElementById('fxNextBtn').focus();
+      bookFxAutoTimer=setTimeout(function(){closeBookFx(true);},5500);
+      return;
+    }
     /* 原地接管：仅用 transform 覆盖被点小书（GPU，不重排） */
     const tb=fb.getBoundingClientRect();
     const r=bookEl.getBoundingClientRect();
@@ -1015,6 +1021,7 @@ function openBookFx(bookEl,i,tp){
     });});
     /* 拿起与掀开微重叠，展开后停留供阅读，由用户决定继续或返回 */
     setTimeout(function(){fx.classList.add('spread');},360);
+    bookFxAutoTimer=setTimeout(function(){closeBookFx(true);},5860);
   }catch(e){transitionTo(1);}
 }
 document.getElementById('fxBackBtn').onclick=function(e){e.stopPropagation();closeBookFx(false);};
